@@ -1,0 +1,328 @@
+{% extends "base.html" %}
+{% block title %}Document Insights · Content Understanding | Nexa AI{% endblock %}
+{% block crumb %}Document insights{% endblock %}
+
+{% block head %}
+<style>
+  .drop-zone {
+    border: 2px dashed #cbd5e1;
+    border-radius: 14px;
+    padding: 28px 20px;
+    text-align: center;
+    background: #f8fafc;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    margin-bottom: 18px;
+  }
+  .drop-zone:hover, .drop-zone.dragover {
+    border-color: var(--blue);
+    background: #f0f4ff;
+  }
+  .drop-icon {
+    font-size: 32px;
+    color: var(--blue);
+    margin-bottom: 8px;
+  }
+  .file-info {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+    font-size: 12px;
+    color: #1e3a8a;
+  }
+  .file-info.show {
+    display: flex;
+  }
+  .result-box {
+    display: none;
+    margin-top: 24px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 22px;
+    box-shadow: var(--shadow);
+  }
+  .result-box.show {
+    display: block;
+    animation: fadeIn 0.3s ease;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .result-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .doc-badge {
+    background: #eff2ff;
+    color: var(--blue);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .doc-content {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 18px;
+    max-height: 480px;
+    overflow-y: auto;
+    font-size: 13px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: #1e293b;
+  }
+  .doc-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="eyebrow">DOCUMENT & MEDIA EXTRACTION · AZURE AI</div>
+<h1 class="page-title">Content understanding</h1>
+<p class="sub">Analyze product manuals, technical specifications, support documents, and PDFs using Azure AI Content Understanding.</p>
+
+<div class="tool-layout">
+  <section class="panel tool-main">
+    <div class="field">
+      <label class="form-label">Upload Document</label>
+      <div class="drop-zone" id="dropZone" onclick="document.getElementById('f').click()">
+        <div class="drop-icon">📄</div>
+        <b style="font-size:13px;display:block;margin-bottom:4px;">Click to select or drag & drop document</b>
+        <span style="font-size:11px;color:var(--muted);">Supports PDF, DOCX, PNG, JPG (up to 25 MB)</span>
+      </div>
+      <input id="f" type="file" accept=".pdf,.png,.jpg,.jpeg,.docx,.tiff" style="display:none;">
+
+      <div class="file-info" id="fileInfo">
+        <span id="fileName">No file chosen</span>
+        <button type="button" onclick="clearFile(event)" style="background:none;border:none;color:#dc2626;cursor:pointer;font-weight:700;font-size:12px;">✕ Remove</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="form-label" for="analyzerSelect">Analyzer Model</label>
+      <select id="analyzerSelect" style="margin-bottom:8px;">
+        <option value="prebuilt-read" selected>prebuilt-read (Document Text, OCR & Markdown — Recommended)</option>
+        <option value="prebuilt-layout">prebuilt-layout (Structure, Tables & Document Layout)</option>
+        <option value="prebuilt-document">prebuilt-document (General Document Key-Value Pairs)</option>
+        <option value="prebuilt-contract">prebuilt-contract (Contracts & Agreements)</option>
+        <option value="prebuilt-invoice">prebuilt-invoice (Invoices & Billing)</option>
+        <option value="prebuilt-receipt">prebuilt-receipt (Receipts & Purchases)</option>
+        <option value="custom">Other (Specify custom analyzer ID)</option>
+      </select>
+      <input id="customAnalyzer" type="text" placeholder="Enter custom analyzer ID" style="display:none;">
+    </div>
+
+    <button class="btn" id="go" onclick="go()">Analyze document ↗</button>
+
+    <div id="o" class="output" aria-live="polite"></div>
+
+    <!-- Structured Result Display -->
+    <div class="result-box" id="resultBox">
+      <div class="result-header">
+        <div style="font:700 15px Manrope;color:var(--ink);">
+          <span>✓ Extracted Document Insights</span>
+        </div>
+        <span class="doc-badge" id="resAnalyzerBadge">prebuilt-read</span>
+      </div>
+
+      <div class="doc-content" id="docContent"></div>
+
+      <div class="doc-actions">
+        <button class="btn" id="copyDocBtn" onclick="copyExtractedText()">Copy extracted text</button>
+        <button class="btn btn-light" onclick="sendToSupportChat()">💬 Ask Nexa about this document</button>
+        <button class="btn btn-light" onclick="sendToTextAnalysis()">▤ Analyze document sentiment</button>
+      </div>
+
+      <details style="margin-top:18px;font-size:11px;color:#64748b;">
+        <summary style="cursor:pointer;font-weight:700;margin-bottom:6px;">View raw Azure response JSON</summary>
+        <pre id="rawDocJson" style="background:#f1f5f9;padding:12px;border-radius:8px;overflow:auto;max-height:220px;font-size:11px;"></pre>
+      </details>
+    </div>
+  </section>
+
+  <aside class="side-panel">
+    <h3>Analyzers explained</h3>
+    <ul>
+      <li><b>prebuilt-read:</b> Extracts text, lines, words, and full Markdown structure from documents and scans.</li>
+      <li><b>prebuilt-layout:</b> Detects tables, selection marks, and reading order.</li>
+      <li><b>prebuilt-invoice / receipt:</b> Extracts vendor names, totals, and line items.</li>
+    </ul>
+
+    <div class="mini-stat" style="margin-top:18px"><span>Engine</span><b>Azure Content Understanding</b></div>
+    <div class="mini-stat"><span>Processing</span><b>Asynchronous Binary REST</b></div>
+    <div class="mini-stat"><span>API Version</span><b>2025-11-01</b></div>
+  </aside>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const fileInput = document.getElementById('f');
+  const dropZone = document.getElementById('dropZone');
+  const fileInfo = document.getElementById('fileInfo');
+  const fileName = document.getElementById('fileName');
+  const analyzerSelect = document.getElementById('analyzerSelect');
+  const customAnalyzer = document.getElementById('customAnalyzer');
+  const resultBox = document.getElementById('resultBox');
+  const docContent = document.getElementById('docContent');
+  const resAnalyzerBadge = document.getElementById('resAnalyzerBadge');
+  const rawDocJson = document.getElementById('rawDocJson');
+  let extractedMarkdownText = "";
+
+  // Drop zone events
+  ['dragenter', 'dragover'].forEach(name => {
+    dropZone.addEventListener(name, e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  });
+  ['dragleave', 'drop'].forEach(name => {
+    dropZone.addEventListener(name, e => { e.preventDefault(); dropZone.classList.remove('dragover'); });
+  });
+  dropZone.addEventListener('drop', e => {
+    if (e.dataTransfer.files.length) {
+      fileInput.files = e.dataTransfer.files;
+      updateFileDisplay();
+    }
+  });
+  fileInput.addEventListener('change', updateFileDisplay);
+
+  function updateFileDisplay() {
+    if (fileInput.files.length > 0) {
+      const f = fileInput.files[0];
+      const sz = (f.size / (1024 * 1024)).toFixed(2);
+      fileName.textContent = `📄 ${f.name} (${sz} MB)`;
+      fileInfo.classList.add('show');
+      dropZone.style.display = 'none';
+    } else {
+      fileInfo.classList.remove('show');
+      dropZone.style.display = 'block';
+    }
+  }
+
+  function clearFile(e) {
+    if (e) e.stopPropagation();
+    fileInput.value = '';
+    updateFileDisplay();
+  }
+
+  analyzerSelect.addEventListener('change', () => {
+    customAnalyzer.style.display = analyzerSelect.value === 'custom' ? 'block' : 'none';
+  });
+
+  function getSelectedAnalyzer() {
+    if (analyzerSelect.value === 'custom') {
+      return customAnalyzer.value.trim() || 'prebuilt-read';
+    }
+    return analyzerSelect.value || 'prebuilt-read';
+  }
+
+  async function go() {
+    const b = document.getElementById('go');
+    const o = document.getElementById('o');
+    const f = fileInput.files[0];
+
+    if (!f) {
+      o.className = 'output show error';
+      o.textContent = 'Please choose a document or PDF file to analyze.';
+      return;
+    }
+
+    const analyzer = getSelectedAnalyzer();
+    const x = new FormData();
+    x.append('file', f);
+    x.append('analyzer', analyzer);
+
+    b.disabled = true;
+    b.textContent = 'Analyzing document…';
+    o.className = 'output show';
+    o.textContent = `Submitting "${f.name}" to Azure Content Understanding (${analyzer}) and waiting for results…`;
+    resultBox.classList.remove('show');
+
+    try {
+      const r = await fetch('/api/content-understanding', { method: 'POST', body: x });
+      const j = await r.json();
+
+      if (!r.ok) {
+        o.className = 'output show error';
+        o.textContent = j.error || `Server error (${r.status})`;
+        return;
+      }
+
+      o.className = 'output'; // hide status on success
+      displayResult(j.result || j, analyzer);
+
+    } catch (e) {
+      o.textContent = 'Unable to connect to the Content Understanding service: ' + e.message;
+      o.className = 'output show error';
+    } finally {
+      b.disabled = false;
+      b.textContent = 'Analyze document ↗';
+    }
+  }
+
+  function displayResult(res, analyzer) {
+    resAnalyzerBadge.textContent = analyzer;
+    rawDocJson.textContent = JSON.stringify(res, null, 2);
+
+    let text = "";
+    if (res.contents && res.contents.length > 0) {
+      for (const item of res.contents) {
+        if (item.markdown) {
+          text += item.markdown + "\n\n";
+        }
+      }
+    }
+
+    if (!text && res.fields) {
+      for (const [k, v] of Object.entries(res.fields)) {
+        text += `**${k}**: ${JSON.stringify(v?.value || v)}\n`;
+      }
+    }
+
+    if (!text) {
+      text = JSON.stringify(res, null, 2);
+    }
+
+    extractedMarkdownText = text.trim();
+    docContent.textContent = extractedMarkdownText;
+    resultBox.classList.add('show');
+    resultBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function copyExtractedText() {
+    if (!extractedMarkdownText) return;
+    navigator.clipboard.writeText(extractedMarkdownText).then(() => {
+      const btn = document.getElementById('copyDocBtn');
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = 'Copy extracted text'; }, 2000);
+    });
+  }
+
+  function sendToSupportChat() {
+    if (!extractedMarkdownText) return;
+    const snippet = extractedMarkdownText.slice(0, 800);
+    const msg = `Here is information extracted from my product document:\n\n"${snippet}"\n\nCan you explain or help me with this?`;
+    window.location.href = `/chat?msg=${encodeURIComponent(msg)}`;
+  }
+
+  function sendToTextAnalysis() {
+    if (!extractedMarkdownText) return;
+    window.location.href = `/text-analysis?text=${encodeURIComponent(extractedMarkdownText.slice(0, 1500))}`;
+  }
+</script>
+{% endblock %}

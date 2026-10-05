@@ -1,0 +1,946 @@
+{% extends "base.html" %}
+{% block title %}Live Speech to Text | Nexa AI{% endblock %}
+{% block crumb %}Speech to text{% endblock %}
+
+{% block head %}
+<style>
+  .speech-card {
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: 32px 28px;
+    box-shadow: var(--shadow);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .mic-wrapper {
+    position: relative;
+    width: 140px;
+    height: 140px;
+    margin: 20px auto 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mic-pulse-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: rgba(69, 103, 245, 0.15);
+    transform: scale(0.9);
+    transition: all 0.3s ease;
+    pointer-events: none;
+  }
+
+  .recording .mic-pulse-ring {
+    background: rgba(239, 68, 68, 0.2);
+    animation: micRipple 1.6s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+  }
+
+  .recording .mic-pulse-ring:nth-child(2) {
+    animation-delay: 0.5s;
+  }
+
+  @keyframes micRipple {
+    0% {
+      transform: scale(0.85);
+      opacity: 0.9;
+    }
+    100% {
+      transform: scale(1.6);
+      opacity: 0;
+    }
+  }
+
+  .mic-button {
+    position: relative;
+    z-index: 2;
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    background: linear-gradient(135deg, #4567f5, #6885ff);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 10px 25px rgba(69, 103, 245, 0.4);
+    transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+
+  .mic-button:hover {
+    transform: scale(1.06);
+    box-shadow: 0 14px 30px rgba(69, 103, 245, 0.5);
+  }
+
+  .mic-button:active {
+    transform: scale(0.96);
+  }
+
+  .recording .mic-button {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    box-shadow: 0 10px 25px rgba(239, 68, 68, 0.5);
+    animation: micPulseBtn 1.5s ease-in-out infinite alternate;
+  }
+
+  @keyframes micPulseBtn {
+    0% { transform: scale(1); }
+    100% { transform: scale(1.05); }
+  }
+
+  .mic-icon {
+    width: 36px;
+    height: 36px;
+    fill: currentColor;
+    transition: transform 0.2s;
+  }
+
+  .stop-icon {
+    display: none;
+    width: 30px;
+    height: 30px;
+    fill: currentColor;
+  }
+
+  .recording .mic-icon {
+    display: none;
+  }
+
+  .recording .stop-icon {
+    display: block;
+  }
+
+  .status-text {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 10px 0 4px;
+    color: var(--ink);
+  }
+
+  .status-sub {
+    font-size: 12px;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  .timer-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #fee2e2;
+    color: #b91c1c;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    margin-top: 10px;
+    opacity: 0;
+    transform: translateY(-5px);
+    transition: all 0.25s ease;
+  }
+
+  .timer-badge.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .rec-dot {
+    width: 8px;
+    height: 8px;
+    background: #dc2626;
+    border-radius: 50%;
+    animation: blink 1s infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.2; }
+  }
+
+  .waveform-container {
+    width: 100%;
+    max-width: 480px;
+    height: 48px;
+    margin: 16px auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+
+  .wave-bar {
+    width: 4px;
+    height: 8px;
+    background: #cbd5e1;
+    border-radius: 4px;
+    transition: height 0.08s ease, background-color 0.2s;
+  }
+
+  .recording .wave-bar {
+    background: #ef4444;
+  }
+
+  .btn-stop-rec {
+    background: #ef4444;
+    color: white;
+    padding: 10px 22px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 13px;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 6px 16px rgba(239, 68, 68, 0.35);
+    display: none;
+    align-items: center;
+    gap: 8px;
+    margin: 8px auto 0;
+    transition: all 0.2s;
+  }
+
+  .btn-stop-rec:hover {
+    background: #dc2626;
+    transform: translateY(-1px);
+  }
+
+  .recording .btn-stop-rec {
+    display: inline-flex;
+  }
+
+  .live-preview {
+    max-width: 580px;
+    margin: 16px auto 0;
+    padding: 12px 18px;
+    background: #f8fafc;
+    border: 1px dashed #cbd5e1;
+    border-radius: 12px;
+    font-size: 13px;
+    color: #475569;
+    font-style: italic;
+    min-height: 42px;
+    display: none;
+  }
+
+  .live-preview.show {
+    display: block;
+  }
+
+  /* Result container */
+  .result-card {
+    display: none;
+    margin-top: 24px;
+    text-align: left;
+    background: white;
+    border: 1px solid #dbeafe;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 10px 30px rgba(69, 103, 245, 0.08);
+    animation: fadeIn 0.3s ease;
+  }
+
+  .result-card.show {
+    display: block;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .result-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .result-title {
+    font: 700 15px Manrope;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .badge-tag {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    background: #eff6ff;
+    color: #2563eb;
+    padding: 3px 8px;
+    border-radius: 6px;
+  }
+
+  .transcript-content {
+    font-size: 15px;
+    line-height: 1.7;
+    color: #1e293b;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 18px 20px;
+    min-height: 70px;
+    user-select: text;
+  }
+
+  .result-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 18px;
+    flex-wrap: wrap;
+  }
+
+  .action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 9px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.18s;
+  }
+
+  .action-btn-primary {
+    background: var(--blue);
+    color: white;
+  }
+
+  .action-btn-primary:hover {
+    background: #3655e4;
+  }
+
+  .action-btn-secondary {
+    background: #f1f5f9;
+    color: #475569;
+    border-color: #e2e8f0;
+  }
+
+  .action-btn-secondary:hover {
+    background: #e2e8f0;
+    color: #1e293b;
+  }
+
+  .action-btn-outline {
+    background: white;
+    color: var(--blue);
+    border-color: #cbd5e1;
+  }
+
+  .action-btn-outline:hover {
+    border-color: var(--blue);
+    background: #eff6ff;
+  }
+
+  .meta-stats {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 14px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* File upload fallback */
+  .upload-accordion {
+    margin-top: 24px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #fafbfe;
+    overflow: hidden;
+  }
+
+  .upload-accordion summary {
+    padding: 14px 18px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
+    cursor: pointer;
+    user-select: none;
+    outline: none;
+  }
+
+  .upload-accordion summary:hover {
+    color: var(--blue);
+  }
+
+  .upload-body {
+    padding: 0 18px 18px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="eyebrow">VOICE INPUT · AZURE AI SPEECH</div>
+<h1 class="page-title">Live Speech to Text</h1>
+<p class="sub">Click the microphone to start speaking. When you click stop, Azure AI Fast Transcription will transcribe your voice into text with high accuracy.</p>
+
+<div class="tool-layout">
+  <section class="tool-main">
+    <div class="speech-card" id="speechContainer">
+      <!-- Language selector bar -->
+      <div style="display:flex;justify-content:center;align-items:center;gap:10px;margin-bottom:12px;">
+        <span style="font-size:12px;font-weight:700;color:#64748b;">Spoken Language:</span>
+        <select id="localeSelect" style="width:auto;padding:6px 12px;font-size:12px;border-radius:8px;">
+          <option value="en-US" selected>English (US)</option>
+          <option value="en-IN">English (India)</option>
+          <option value="en-GB">English (UK)</option>
+          <option value="hi-IN">Hindi (India)</option>
+          <option value="es-ES">Spanish (Spain)</option>
+          <option value="fr-FR">French (France)</option>
+          <option value="de-DE">German (Germany)</option>
+          <option value="ja-JP">Japanese (Japan)</option>
+          <option value="custom">Other (Specify below)</option>
+        </select>
+        <input id="customLocaleInput" type="text" placeholder="e.g. pt-BR" style="display:none;width:100px;padding:6px 10px;font-size:12px;border-radius:8px;" />
+      </div>
+
+      <!-- Microphone Hero Button -->
+      <div class="mic-wrapper" id="micWrapper">
+        <div class="mic-pulse-ring"></div>
+        <div class="mic-pulse-ring"></div>
+        <button class="mic-button" id="micBtn" onclick="toggleRecording()" aria-label="Start recording microphone">
+          <!-- Mic SVG Icon -->
+          <svg class="mic-icon" viewBox="0 0 24 24">
+            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+            <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+          </svg>
+          <!-- Stop SVG Icon -->
+          <svg class="stop-icon" viewBox="0 0 24 24">
+            <rect x="6" y="6" width="12" height="12" rx="2" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="status-text" id="statusTitle">Click microphone to speak</div>
+      <p class="status-sub" id="statusDesc">Ensure your microphone permissions are granted in the browser.</p>
+
+      <div class="timer-badge" id="timerBadge">
+        <span class="rec-dot"></span>
+        <span id="timerText">00:00</span>
+      </div>
+
+      <!-- Live audio level waveform bars -->
+      <div class="waveform-container" id="waveform">
+        <!-- 24 reactive sound bars -->
+        {% for i in range(24) %}
+        <div class="wave-bar" id="wb-{{ i }}"></div>
+        {% endfor %}
+      </div>
+
+      <!-- Stop transcription button -->
+      <div>
+        <button class="btn-stop-rec" id="btnStop" onclick="stopRecording()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="5" y="5" width="14" height="14" rx="2" />
+          </svg>
+          Stop & Transcribe
+        </button>
+      </div>
+
+      <!-- Live interim transcription preview while speaking -->
+      <div class="live-preview" id="livePreview">
+        Listening...
+      </div>
+    </div>
+
+    <!-- Transcription Result Card -->
+    <div class="result-card" id="resultCard">
+      <div class="result-header">
+        <div class="result-title">
+          <span>✓ Transcription Result</span>
+          <span class="badge-tag" id="resultBadge">Azure AI Fast Speech</span>
+        </div>
+        <div class="meta-stats" id="metaStats">
+          <span id="durationMeta"></span>
+        </div>
+      </div>
+
+      <div class="transcript-content" id="transcriptText"></div>
+
+      <div class="result-actions">
+        <button class="action-btn action-btn-primary" id="copyBtn" onclick="copyTranscript()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          <span id="copyBtnText">Copy text</span>
+        </button>
+        <button class="action-btn action-btn-outline" onclick="sendToChat()">
+          💬 Ask Nexa Support
+        </button>
+        <button class="action-btn action-btn-outline" onclick="sendToAnalysis()">
+          ▤ Analyze sentiment & keywords
+        </button>
+        <button class="action-btn action-btn-secondary" onclick="resetToRecord()">
+          🔄 Speak again
+        </button>
+      </div>
+
+      <!-- Collapsible raw Azure JSON details -->
+      <details style="margin-top:16px;font-size:11px;color:#64748b;">
+        <summary style="cursor:pointer;font-weight:700;margin-bottom:6px;">View Azure AI technical details</summary>
+        <pre id="rawResult" style="background:#f1f5f9;padding:12px;border-radius:8px;overflow:auto;max-height:180px;font-size:11px;"></pre>
+      </details>
+    </div>
+
+    <!-- Secondary option: file upload fallback -->
+    <details class="upload-accordion">
+      <summary>📁 Or upload a pre-recorded audio file instead</summary>
+      <div class="upload-body">
+        <div class="field">
+          <label class="form-label" for="fileInput">Choose audio file (WAV, MP3, WebM, M4A)</label>
+          <input id="fileInput" type="file" accept="audio/*">
+        </div>
+        <button class="btn" id="uploadBtn" onclick="uploadAudioFile()">Transcribe file ↗</button>
+      </div>
+    </details>
+  </section>
+
+  <aside class="side-panel">
+    <h3>Microphone features</h3>
+    <ul>
+      <li><b>One-click recording:</b> Click the microphone and talk naturally.</li>
+      <li><b>Live feedback:</b> Dynamic audio level waveform indicates volume in real time.</li>
+      <li><b>Fast transcription:</b> Azure Speech synchronously processes and formats your speech.</li>
+      <li><b>Multi-language:</b> Switch locales to transcribe in English, Hindi, Spanish, and more.</li>
+    </ul>
+
+    <div class="mini-stat" style="margin-top:18px"><span>Engine</span><b>Azure Fast Speech</b></div>
+    <div class="mini-stat"><span>Latency</span><b>Synchronous REST</b></div>
+    <div class="mini-stat"><span>Encoding</span><b>PCM 16-bit / WebM</b></div>
+
+    <p style="margin-top:16px;font-size:11px;color:var(--muted);">
+      Microphone requires browser permission. Ensure access is allowed when prompted.
+    </p>
+  </aside>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let isRecording = false;
+  let mediaRecorder = null;
+  let audioStream = null;
+  let audioChunks = [];
+  let audioContext = null;
+  let analyser = null;
+  let animFrameId = null;
+  let timerInterval = null;
+  let recordingSeconds = 0;
+  let recognition = null;
+  let lastTranscribedText = "";
+
+  const container = document.getElementById('speechContainer');
+  const micBtn = document.getElementById('micBtn');
+  const statusTitle = document.getElementById('statusTitle');
+  const statusDesc = document.getElementById('statusDesc');
+  const timerBadge = document.getElementById('timerBadge');
+  const timerText = document.getElementById('timerText');
+  const btnStop = document.getElementById('btnStop');
+  const livePreview = document.getElementById('livePreview');
+  const resultCard = document.getElementById('resultCard');
+  const transcriptText = document.getElementById('transcriptText');
+  const durationMeta = document.getElementById('durationMeta');
+  const rawResult = document.getElementById('rawResult');
+  const localeSelect = document.getElementById('localeSelect');
+  const customLocaleInput = document.getElementById('customLocaleInput');
+  const waveBars = Array.from({length: 24}, (_, i) => document.getElementById('wb-' + i));
+
+  // Language selector handler
+  localeSelect.addEventListener('change', () => {
+    customLocaleInput.style.display = localeSelect.value === 'custom' ? 'inline-block' : 'none';
+  });
+
+  function getSelectedLocale() {
+    if (localeSelect.value === 'custom') {
+      return customLocaleInput.value.trim() || 'en-US';
+    }
+    return localeSelect.value || 'en-US';
+  }
+
+  // Toggle Recording
+  async function toggleRecording() {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  }
+
+  // Start Recording
+  async function startRecording() {
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert("Microphone recording is not supported in this browser. Please use Chrome, Edge, or Firefox.");
+        return;
+      }
+
+      // Request microphone stream
+      audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunks = [];
+
+      // Determine supported mimeType
+      let mimeType = 'audio/webm';
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        mimeType = 'audio/webm;codecs=opus';
+      } else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+        mimeType = 'audio/ogg;codecs=opus';
+      }
+
+      mediaRecorder = new MediaRecorder(audioStream, { mimeType });
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          audioChunks.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const rawBlob = new Blob(audioChunks, { type: mimeType });
+        await processAndSendAudio(rawBlob);
+      };
+
+      // Set up AudioContext for reactive audio visualizer
+      setupVisualizer(audioStream);
+
+      // Set up live speech recognition for real-time speech preview if supported
+      setupLiveRecognition();
+
+      mediaRecorder.start(150);
+      isRecording = true;
+
+      // Update UI to recording state
+      container.classList.add('recording');
+      statusTitle.textContent = "Listening... Speak now";
+      statusDesc.textContent = "Speak clearly into your microphone. Click stop when finished.";
+      timerBadge.classList.add('show');
+      recordingSeconds = 0;
+      updateTimerDisplay();
+      timerInterval = setInterval(() => {
+        recordingSeconds++;
+        updateTimerDisplay();
+      }, 1000);
+
+      livePreview.classList.add('show');
+      livePreview.textContent = "Listening to your voice...";
+
+    } catch (err) {
+      console.error("Microphone access error:", err);
+      statusTitle.textContent = "Microphone Access Denied";
+      statusDesc.textContent = "Please grant microphone permissions in your browser address bar to use speech-to-text.";
+      alert("Could not access microphone: " + (err.message || err.name) + ". Please check browser permissions.");
+    }
+  }
+
+  // Stop Recording
+  function stopRecording() {
+    if (!isRecording) return;
+    isRecording = false;
+
+    // Stop timer
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+
+    // Stop visualizer
+    if (animFrameId) {
+      cancelAnimationFrame(animFrameId);
+      animFrameId = null;
+    }
+    resetWaveBars();
+
+    // Stop speech recognition preview
+    if (recognition) {
+      try { recognition.stop(); } catch(e){}
+    }
+
+    // Stop media tracks
+    if (audioStream) {
+      audioStream.getTracks().forEach(track => track.stop());
+    }
+
+    // UI state: transcribing
+    container.classList.remove('recording');
+    statusTitle.textContent = "Transcribing your speech...";
+    statusDesc.textContent = "Processing recording through Azure AI Speech Fast Transcription...";
+    micBtn.disabled = true;
+
+    // Trigger mediaRecorder stop to package and send
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+    }
+  }
+
+  // Process audio (Convert to standard PCM WAV for 100% Azure compatibility)
+  async function processAndSendAudio(rawBlob) {
+    let finalBlob = rawBlob;
+    let filename = 'voice_recording.webm';
+
+    try {
+      if (window.AudioContext || window.webkitAudioContext) {
+        const tempCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+        const arrayBuf = await rawBlob.arrayBuffer();
+        const decodedBuffer = await tempCtx.decodeAudioData(arrayBuf);
+        finalBlob = audioBufferToWav(decodedBuffer);
+        filename = 'voice_recording.wav';
+      }
+    } catch (err) {
+      console.warn("WAV encoding fallback to raw recording blob:", err);
+      finalBlob = rawBlob;
+      filename = 'voice_recording.webm';
+    }
+
+    await submitToAzureSpeech(finalBlob, filename);
+  }
+
+  // Submit audio blob to Flask /api/speech
+  async function submitToAzureSpeech(blob, filename) {
+    const formData = new FormData();
+    formData.append('audio', blob, filename);
+    formData.append('language', getSelectedLocale());
+
+    try {
+      const resp = await fetch('/api/speech', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        throw new Error(data.error || ("Server returned " + resp.status));
+      }
+
+      displayTranscription(data);
+
+    } catch (err) {
+      console.error("Transcription error:", err);
+      statusTitle.textContent = "Transcription Failed";
+      statusDesc.textContent = err.message || "An error occurred while contacting Azure Speech.";
+      alert("Transcription error: " + err.message);
+    } finally {
+      micBtn.disabled = false;
+      livePreview.classList.remove('show');
+    }
+  }
+
+  // Display Result in UI
+  function displayTranscription(data) {
+    statusTitle.textContent = "Transcription Complete!";
+    statusDesc.textContent = "Review your transcribed text below.";
+    timerBadge.classList.remove('show');
+
+    let text = "";
+    let duration = null;
+
+    if (data.result) {
+      if (data.result.combinedPhrases && data.result.combinedPhrases.length > 0) {
+        text = data.result.combinedPhrases.map(p => p.text).filter(Boolean).join(' ');
+      }
+      if (!text && data.result.phrases && data.result.phrases.length > 0) {
+        text = data.result.phrases.map(p => p.text).filter(Boolean).join(' ');
+      }
+      if (data.result.durationMilliseconds) {
+        duration = (data.result.durationMilliseconds / 1000).toFixed(1) + 's';
+      }
+    }
+
+    if (!text) {
+      text = "(No clear speech detected. Please speak closer to the microphone and try again.)";
+    }
+
+    lastTranscribedText = text;
+    transcriptText.textContent = text;
+    durationMeta.textContent = duration ? `Duration: ${duration} · Locale: ${getSelectedLocale()}` : `Locale: ${getSelectedLocale()}`;
+    rawResult.textContent = JSON.stringify(data.result || data, null, 2);
+
+    resultCard.classList.add('show');
+    resultCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  // Copy transcript
+  function copyTranscript() {
+    if (!lastTranscribedText) return;
+    navigator.clipboard.writeText(lastTranscribedText).then(() => {
+      const copyBtnText = document.getElementById('copyBtnText');
+      copyBtnText.textContent = 'Copied!';
+      setTimeout(() => { copyBtnText.textContent = 'Copy text'; }, 2000);
+    });
+  }
+
+  // Send to support chat
+  function sendToChat() {
+    if (!lastTranscribedText) return;
+    window.location.href = `/chat?msg=${encodeURIComponent(lastTranscribedText)}`;
+  }
+
+  // Send to text analysis
+  function sendToAnalysis() {
+    if (!lastTranscribedText) return;
+    window.location.href = `/text-analysis?text=${encodeURIComponent(lastTranscribedText)}`;
+  }
+
+  // Reset to record again
+  function resetToRecord() {
+    resultCard.classList.remove('show');
+    statusTitle.textContent = "Click microphone to speak";
+    statusDesc.textContent = "Click the microphone button to start a new voice recording.";
+    timerBadge.classList.remove('show');
+    lastTranscribedText = "";
+  }
+
+  // Real-time audio visualizer setup
+  function setupVisualizer(stream) {
+    try {
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const source = audioContext.createMediaStreamSource(stream);
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = 64;
+      source.connect(analyser);
+
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      function renderWave() {
+        if (!isRecording) return;
+        animFrameId = requestAnimationFrame(renderWave);
+        analyser.getByteFrequencyData(dataArray);
+
+        for (let i = 0; i < waveBars.length; i++) {
+          const val = dataArray[i % bufferLength] || 0;
+          const height = Math.max(6, Math.min(44, (val / 255) * 44));
+          waveBars[i].style.height = `${height}px`;
+        }
+      }
+      renderWave();
+    } catch (e) {
+      console.warn("Visualizer init error:", e);
+    }
+  }
+
+  function resetWaveBars() {
+    waveBars.forEach(bar => { if (bar) bar.style.height = '8px'; });
+  }
+
+  // Live Speech Recognition (browser preview)
+  function setupLiveRecognition() {
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRec) return;
+
+    try {
+      recognition = new SpeechRec();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = getSelectedLocale();
+
+      recognition.onresult = (event) => {
+        let interim = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          interim += event.results[i][0].transcript;
+        }
+        if (interim.trim()) {
+          livePreview.textContent = `"${interim.trim()}"`;
+        }
+      };
+
+      recognition.onerror = () => {};
+      recognition.start();
+    } catch(e) {
+      console.warn("Live speech preview not available:", e);
+    }
+  }
+
+  function updateTimerDisplay() {
+    const m = String(Math.floor(recordingSeconds / 60)).padStart(2, '0');
+    const s = String(recordingSeconds % 60).padStart(2, '0');
+    timerText.textContent = `${m}:${s}`;
+  }
+
+  // File upload fallback handler
+  async function uploadAudioFile() {
+    const fInput = document.getElementById('fileInput');
+    const uBtn = document.getElementById('uploadBtn');
+    const f = fInput.files[0];
+    if (!f) {
+      alert("Please choose an audio file first.");
+      return;
+    }
+    uBtn.disabled = true;
+    uBtn.textContent = 'Transcribing file…';
+    statusTitle.textContent = "Transcribing uploaded file…";
+    statusDesc.textContent = "Processing audio through Azure AI Speech Fast Transcription…";
+
+    try {
+      await submitToAzureSpeech(f, f.name);
+    } finally {
+      uBtn.disabled = false;
+      uBtn.textContent = 'Transcribe file ↗';
+    }
+  }
+
+  // Helper: Convert AudioBuffer to 16-bit PCM WAV Blob
+  function audioBufferToWav(buffer) {
+    const numChannels = 1;
+    const sampleRate = buffer.sampleRate;
+    const bitDepth = 16;
+
+    let channelData;
+    if (buffer.numberOfChannels === 1) {
+      channelData = buffer.getChannelData(0);
+    } else {
+      const ch0 = buffer.getChannelData(0);
+      const ch1 = buffer.getChannelData(1);
+      channelData = new Float32Array(ch0.length);
+      for (let i = 0; i < ch0.length; i++) {
+        channelData[i] = (ch0[i] + ch1[i]) / 2;
+      }
+    }
+
+    const bytesPerSample = bitDepth / 8;
+    const blockAlign = numChannels * bytesPerSample;
+    const dataSize = channelData.length * bytesPerSample;
+    const wavBuffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(wavBuffer);
+
+    function writeString(offset, str) {
+      for (let i = 0; i < str.length; i++) {
+        view.setUint8(offset + i, str.charCodeAt(i));
+      }
+    }
+
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + dataSize, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true); // PCM
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * blockAlign, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, bitDepth, true);
+    writeString(36, 'data');
+    view.setUint32(40, dataSize, true);
+
+    let offset = 44;
+    for (let i = 0; i < channelData.length; i++, offset += 2) {
+      let sample = Math.max(-1, Math.min(1, channelData[i]));
+      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+    }
+
+    return new Blob([view], { type: 'audio/wav' });
+  }
+</script>
+{% endblock %}
